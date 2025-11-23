@@ -17,7 +17,7 @@
 ## Installazione
 
 ```bash
-pip install git+https://github.com/AlessioQuagliara/linkbay-multitenant.git
+pip install git+https://github.com/AlessioQuagliara/linkbay_multitenant.git
 ```
 
 ## Utilizzo Rapido
