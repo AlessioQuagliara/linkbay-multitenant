@@ -1,21 +1,60 @@
 [project]
 name = "linkbay-multitenant"
-version = "0.1.0"
-description = "Sistema multitenant semplice e scalabile per FastAPI"
+version = "1.0.0-beta"
+description = "Sistema multitenant enterprise-ready per FastAPI - DB Pool, Security, Cache, Metrics, Admin API"
 authors = [
     {name = "Alessio Quagliara", email = "quagliara.alessio@gmail.com"},
 ]
 dependencies = [
     "fastapi>=0.100.0",
     "pydantic>=2.0.0",
-    "sqlalchemy>=2.0.0",
-    "databases[postgresql]>=0.8.0",
 ]
 requires-python = ">=3.8"
 
+readme = "README.md"
+license = {text = "MIT"}
+keywords = ["fastapi", "multitenant", "saas", "enterprise", "database", "security"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/AlessioQuagliara/linkbay-multitenant"
+Repository = "https://github.com/AlessioQuagliara/linkbay-multitenant"
+Documentation = "https://github.com/AlessioQuagliara/linkbay-multitenant#readme"
+Issues = "https://github.com/AlessioQuagliara/linkbay-multitenant/issues"
+
 [project.optional-dependencies]
+# Database support
+postgresql = ["asyncpg>=0.28.0", "sqlalchemy[asyncio]>=2.0.0"]
+mysql = ["aiomysql>=0.2.0", "sqlalchemy[asyncio]>=2.0.0"]
+sqlite = ["aiosqlite>=0.19.0", "sqlalchemy[asyncio]>=2.0.0"]
+
+# Optional integrations
 redis = ["redis>=4.5.0"]
 jwt = ["python-jose[cryptography]>=3.3.0"]
+
+# Development
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "httpx>=0.24.0",
+    "uvicorn>=0.23.0",
+]
+
+# Full install (all features)
+full = [
+    "linkbay-multitenant[postgresql,redis,jwt]",
+]
 
 [build-system]
 requires = ["setuptools>=45.0", "wheel"]
