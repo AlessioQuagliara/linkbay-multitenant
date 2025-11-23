@@ -69,12 +69,9 @@ class MultitenantCore:
             if auth_header and auth_header.startswith("Bearer "):
                 token = auth_header[7:]
                 try:
-                    # Decodifica il JWT senza verificare la firma (per estrazione claim)
-                    # In produzione, verifica sempre la firma!
                     payload = jwt.get_unverified_claims(token)
                     return payload.get(self.jwt_claim)
                 except Exception as e:
-                    # Log dell'errore se necessario
                     pass
             return None
         
