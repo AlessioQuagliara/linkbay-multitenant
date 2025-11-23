@@ -1,16 +1,18 @@
-#__init__.py
-from .plugin import LinkBayMultiTenantPlugin, MultiTenantConfig
-from .service import TenantServiceProtocol
-from .schemas import TenantContext, TenantStrategy, TenantIdentificationMethod
-from .dependencies import get_tenant_context, get_tenant_id
+from .core import MultitenantCore, TenantManager
+from .dependencies import get_tenant, get_tenant_db, require_tenant
+from .middleware import MultitenantMiddleware
+from .router import MultitenantRouter
+from .schemas import TenantInfo, DatabaseConfig
 
+__version__ = "0.1.0"
 __all__ = [
-    "LinkBayMultiTenantPlugin",
-    "MultiTenantConfig",
-    "TenantServiceProtocol",
-    "TenantContext",
-    "TenantStrategy",
-    "TenantIdentificationMethod",
-    "get_tenant_context",
-    "get_tenant_id",
+    "MultitenantCore",
+    "TenantManager", 
+    "get_tenant",
+    "get_tenant_db",
+    "require_tenant",
+    "MultitenantMiddleware",
+    "MultitenantRouter",
+    "TenantInfo",
+    "DatabaseConfig"
 ]

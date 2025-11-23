@@ -1,24 +1,22 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "linkbay-multitenant"
 version = "0.1.0"
-description = "Sistema leggero di multi-tenancy per FastAPI"
-readme = "README.md"
-authors = [{name = "LinkBayCMS Team"}]
-license = {text = "MIT"}
-requires-python = ">=3.9"
-dependencies = [
-    "fastapi>=0.104.0",
-    "pydantic>=2.0.0",
-    "starlette>=0.27.0",
+description = "Sistema multitenant semplice e scalabile per FastAPI"
+authors = [
+    {name = "Alessio Quagliara", email = "quagliara.alessio@gmail.com"},
 ]
+dependencies = [
+    "fastapi>=0.100.0",
+    "pydantic>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "databases[postgresql]>=0.8.0",
+]
+requires-python = ">=3.8"
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "uvicorn>=0.24.0",
-]
+redis = ["redis>=4.5.0"]
+jwt = ["python-jose[cryptography]>=3.3.0"]
+
+[build-system]
+requires = ["setuptools>=45.0", "wheel"]
+build-backend = "setuptools.build_meta"

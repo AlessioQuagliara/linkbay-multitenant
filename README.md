@@ -1,4 +1,4 @@
-# LinkBay-MultiTenant
+# LinkBay-MultiTenant Beta 1.0.0
 
 Sistema leggero di multi-tenancy per FastAPI.
 
