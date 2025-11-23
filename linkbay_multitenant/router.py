@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from typing import Optional, Callable, Any
+from typing import Optional, Callable, Any, List
 from .dependencies import get_tenant, require_tenant
 
 class MultitenantRouter:
@@ -8,12 +8,23 @@ class MultitenantRouter:
         self.tenant_dependency = get_tenant
     
     def add_route(self, path: str, method: str, endpoint: Callable, **kwargs):
-        """Aggiunge una route con dipendenza tenant"""
-        # Aggiungi automaticamente la dipendenza tenant se non specificata
-        if "dependencies" not in kwargs:
-            kwargs["dependencies"] = [Depends(self.tenant_dependency)]
+        """Aggiunge una route con dipendenza tenant usando add_api_route"""
+        # Estrai dependencies se esistono
+        dependencies = kwargs.pop("dependencies", None)
         
-        self.router.add_route(path, method, endpoint, **kwargs)
+        # Aggiungi automaticamente la dipendenza tenant se non specificata
+        if dependencies is None:
+            dependencies = [Depends(self.tenant_dependency)]
+        
+        # Usa add_api_route invece di add_route per supportare dependencies
+        methods = [method] if isinstance(method, str) else method
+        self.router.add_api_route(
+            path, 
+            endpoint, 
+            methods=methods,
+            dependencies=dependencies,
+            **kwargs
+        )
     
     def get(self, path: str, **kwargs):
         def decorator(func):
