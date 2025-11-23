@@ -1,6 +1,10 @@
 from fastapi import Depends, HTTPException, status, Request
-from typing import Optional
+from typing import Optional, Protocol
 from .schemas import TenantInfo
+
+# Protocol per il servizio database tenant
+class DatabaseServiceProtocol(Protocol):
+    async def get_tenant_database(self, tenant_id: str): ...
 
 async def get_tenant(request: Request) -> Optional[TenantInfo]:
     """Dipendenza per ottenere le info del tenant corrente"""
@@ -21,10 +25,20 @@ async def require_tenant(
         )
     return tenant
 
+# DIPENDENZA VUOTA - TU LA IMPLEMENTI NEL TUO CMS
 async def get_tenant_db(
     tenant: TenantInfo = Depends(require_tenant)
 ):
-    """Dipendenza per ottenere la connessione DB del tenant"""
-    # Qui implementerai la logica per ottenere il DB del tenant specifico
-    # Esempio: return get_database_connection(tenant.database_config)
-    return f"Database connection for tenant: {tenant.id}"
+    """
+    DIPENDENDA VUOTA - Implementala nel tuo CMS:
+    
+    Esempio nel tuo codice:
+    
+    async def get_tenant_db(tenant: TenantInfo = Depends(require_tenant)):
+        # Tua logica per connetterti al DB del tenant
+        database_url = f"postgresql://.../tenant_{tenant.id}"
+        return await get_database_connection(database_url)
+    """
+    raise NotImplementedError(
+        "Implementa get_tenant_db nel tuo CMS con la tua logica database"
+    )

@@ -135,11 +135,11 @@ app.include_router(router.router)
 ```
 
 ## Licenza
-
+```bash
 MIT - Vedere LICENSE per dettagli.
 ```
 
-## 🚀 **UTILIZZO NEL TUO CMS**
+## ESEMPIO
 
 ```python
 from fastapi import FastAPI, Depends
