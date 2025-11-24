@@ -1,4 +1,4 @@
-# LinkBay-Multitenant v0.2.0
+# LinkBay-Multitenant v0.2.1
 
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 [![Python](https://img.shields.io/badge/python-3.8+-blue)]()
