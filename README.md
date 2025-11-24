@@ -4,495 +4,443 @@
 [![Python](https://img.shields.io/badge/python-3.8+-blue)]()
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)]()
 
-**Sistema multitenant enterprise-ready per FastAPI - Isolamento dati, sicurezza e scalabilità**
+LinkBay-Multitenant è una raccolta di moduli **semplici da usare** per costruire API multi-tenant con FastAPI. Offre una base core leggera e una serie di estensioni opzionali per scenari enterprise. Tutti gli esempi che vedi in questa pagina sono completi e riproducibili.
 
-## Caratteristiche
+> **Idea chiave**: parti dal core (middleware + router) e abilita solo i moduli di cui hai davvero bisogno. Ogni sezione indica chiaramente cosa fa il modulo, quando usarlo e quali limiti ha.
 
-### Core Features
-- **Multiple strategie** - Header, Subdomain, Path, JWT
-- **Isolamento dati** - Database separati per tenant
-- **Middleware automatico** - Identificazione tenant
-- **Dipendenze FastAPI** - Accesso semplice al tenant corrente
-- **Router multitenant** - Route automaticamente protette
-- **Completamente async** - Performante e scalabile
-- **Zero dipendenze DB** - Implementi tu i modelli
+---
 
-###  Enterprise Features (NEW!)
-- **DB Connection Pool** - Pool dedicati per ogni tenant con auto-scaling
-- **Query Security** - Interceptor che previene data leak cross-tenant
-- **Async Context** - Tenant context preserved in background tasks
-- **Admin API** - Gestione dinamica tenant (create, delete, update)
-- **Smart Caching** - LRU cache con TTL per ridurre carico DB
-- **Metrics & Monitoring** - Metriche real-time per ogni tenant
-- **Data Migration** - Export, import, e migrazione tra tenant
+## 1. Installazione
 
-## Installazione
 ```bash
-pip install linkbay-multitenant==0.2.0
-```
-oppure
-```bash
-pip install git+https://github.com/AlessioQuagliara/linkbay_multitenant.git
+pip install git+https://github.com/AlessioQuagliara/linkbay_multitenant.git@main
 ```
 
-## Utilizzo Rapido
+Oppure, per sviluppo locale:
 
-### 1. Implementa TenantServiceProtocol
+```bash
+git clone https://github.com/AlessioQuagliara/linkbay_multitenant.git
+cd linkbay_multitenant
+pip install -e .
+```
+
+---
+
+## 2. Core in tre step
+
+### Step 1 – TenantService
 
 ```python
-from linkbay_multitenant import TenantServiceProtocol, TenantInfo
+from linkbay_multitenant import TenantServiceProtocol
 
 class MyTenantService(TenantServiceProtocol):
-    def __init__(self, db_session):
-        self.db = db_session
-
     async def get_tenant_by_id(self, tenant_id: str):
-        return await self.db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        # Sostituisci con il tuo storage
+        return await TenantTable.get(tenant_id)
 
     async def get_tenant_by_domain(self, domain: str):
-        return await self.db.query(Tenant).filter(Tenant.domain == domain).first()
+        return await TenantTable.get_by_domain(domain)
 
-    # ... implementa tutti i metodi del Protocol
+    async def get_tenant_by_subdomain(self, subdomain: str):
+        return await TenantTable.get_by_subdomain(subdomain)
+
+    async def get_tenant_database_url(self, tenant_id: str) -> str:
+        return f"postgresql+asyncpg://user:pass@localhost/{tenant_id}"
 ```
 
-### 2. Configura nel tuo FastAPI
+### Step 2 – Core + Middleware
 
 ```python
 from fastapi import FastAPI
 from linkbay_multitenant import MultitenantCore, MultitenantMiddleware
 
-app = FastAPI()
-
-# Configurazione
-tenant_service = MyTenantService(db_session)
-multitenant_core = MultitenantCore(
+tenant_service = MyTenantService()
+core = MultitenantCore(
     tenant_service=tenant_service,
-    strategy="header",  # o "subdomain", "path"
+    strategy="header",          # "header" | "subdomain" | "path"
     tenant_header="X-Tenant-ID"
 )
 
-# Aggiungi middleware
-app.add_middleware(MultitenantMiddleware, multitenant_core=multitenant_core)
+app = FastAPI()
+app.add_middleware(MultitenantMiddleware, multitenant_core=core)
 ```
 
-### 3. Usa il Router Multitenant
+### Step 3 – Router e dipendenze
 
 ```python
+from fastapi import Depends
 from linkbay_multitenant import MultitenantRouter, require_tenant
 
 router = MultitenantRouter(prefix="/api", tags=["api"])
 
-@router.get("/data")
-async def get_tenant_data(tenant = Depends(require_tenant)):
-    return {"tenant_id": tenant.id, "data": "solo per questo tenant"}
+@router.get("/dashboard")
+async def dashboard(tenant = Depends(require_tenant)):
+    return {"tenant": tenant.id, "message": "Benvenuto!"}
 
 app.include_router(router.router)
 ```
 
-### 4. Dipendenze Disponibili
+**Già pronto!** Con questi tre passi hai isolamento logico per tenant, middleware automatico e dipendenze riutilizzabili.
 
-```python
-from linkbay_multitenant import get_tenant, get_tenant_id, require_tenant
+---
 
-@app.get("/info")
-async def tenant_info(tenant = Depends(get_tenant)):
-    return tenant
+## 3. Moduli opzionali (usa solo ciò che ti serve)
 
-@app.get("/protected")
-async def protected_data(tenant = Depends(require_tenant)):
-    return f"Dati per {tenant.name}"
-```
+| Modulo | Quando usarlo | File | Esempio rapido |
+|--------|----------------|------|----------------|
+| `TenantDBPool` | Tenant con database dedicato | `linkbay_multitenant/db_pool.py` | [Pool & lifecycle](#tenantdbpool--gestione-connessioni) |
+| `TenantQueryInterceptor` | Vuoi enforcement sui filtri tenant | `linkbay_multitenant/security.py` | [Query interceptor](#tenantqueryinterceptor--sicurezza-query) |
+| `TenantContext` | Preservare tenant in background tasks | `linkbay_multitenant/context.py` | [Context async/sync](#tenantcontext--contextvars-semplici) |
+| `TenantCache` | Ridurre letture su tenant info | `linkbay_multitenant/cache.py` | [Cache & invalidazione](#tenantcache--cache-con-invalidazione) |
+| `MetricsCollector` | Mettere metriche basiche in memoria | `linkbay_multitenant/metrics.py` | [Metriche e export](#metricscollector--metriche-semplici) |
+| `TenantAdminService` | Esporre CRUD tenant | `linkbay_multitenant/admin.py` | [Admin API](#tenantadminservice--admin-api) |
+| `TenantMigrationService` | Coordinare export/import/move | `linkbay_multitenant/migration.py` | [Migrazioni](#tenantmigrationservice--migrazioni-guidate) |
 
-## Strategie di Identificazione
+Le sezioni seguenti spiegano ogni modulo, i limiti e come integrarli in deployment reali.
 
-### Header (default)
-```http
-GET /api/data
-X-Tenant-ID: tenant-123
-```
+---
 
-### Subdomain
-```http
-GET /api/data
-Host: tenant-123.yourapp.com
-```
+## TenantDBPool – Gestione connessioni
 
-### Path
-```http
-GET /tenant-123/api/data
-```
-
-## Esempio Completo
-
-```python
-from fastapi import FastAPI, Depends
-from linkbay_multitenant import (
-    MultitenantCore, MultitenantMiddleware, 
-    MultitenantRouter, require_tenant
-)
-
-app = FastAPI()
-
-# Setup
-tenant_service = MyTenantService()
-multitenant_core = MultitenantCore(tenant_service, strategy="header")
-app.add_middleware(MultitenantMiddleware, multitenant_core=multitenant_core)
-
-# Router con tenant
-router = MultitenantRouter()
-
-@router.get("/products")
-async def get_products(tenant = Depends(require_tenant)):
-    # Qui query DB filtrata per tenant
-    return {"tenant": tenant.id, "products": []}
-
-app.include_router(router.router)
-```
-
-## 🏢 Enterprise Features - Guida Completa
-
-### 1. DB Connection Pool
-
-Pool di connessioni dedicato per ogni tenant con configurazione ottimizzata:
+**Use case**: ogni tenant ha un database (o schema) dedicato.
 
 ```python
 from linkbay_multitenant import TenantDBPool
 
-# Setup pool
-def get_tenant_db_url(tenant_id: str) -> str:
-    return f"postgresql+asyncpg://user:pass@localhost/tenant_{tenant_id}"
+def get_db_url(tenant_id: str) -> str:
+    return f"postgresql+asyncpg://user:pass@db/{tenant_id}"
 
 db_pool = TenantDBPool(
-    get_tenant_db_url,
-    pool_size=10,
-    max_overflow=20,
-    pool_timeout=30
+    get_tenant_db_url=get_db_url,
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
 )
 
-# Usa in route
-@app.get("/data")
-async def get_data(tenant = Depends(require_tenant)):
+@router.get("/orders")
+async def list_orders(tenant = Depends(require_tenant)):
     async with await db_pool.get_session(tenant.id) as session:
-        result = await session.execute(select(Product))
-        return result.scalars().all()
+        rows = await session.execute(select(Order))
+        return rows.scalars().all()
 
-# Cleanup on shutdown
 @app.on_event("shutdown")
 async def shutdown():
     await db_pool.close_all()
-
-# Monitoring pool
-stats = db_pool.get_all_stats()
 ```
 
-### 2. Query Security Interceptor
-
-Previene accidentali data leak verificando filtri tenant:
+**Lifecycle quando elimini un tenant**
 
 ```python
-from linkbay_multitenant import TenantQueryInterceptor, TenantQueryBuilder
+await db_pool.close_tenant_pool("tenant-123")
+```
 
-# Setup interceptor
+- Chiude nuove connessioni subito.
+- Connessioni in-flight sono lasciate terminare (usa timeouts del driver). Se vuoi un drain esplicito, chiama `await asyncio.sleep(grace_period)` prima di droppare il database.
+- Documenta ai tuoi utenti che le DELETE tenant sono operazioni amministrative pianificate.
+
+**Pattern shared database**
+
+Se preferisci un database condiviso:
+
+1. Non usare il pool per tenant singoli.
+2. Affidati al query interceptor (o Row Level Security lato DB).
+3. Mantieni un’unica engine SQLAlchemy e passa `tenant_id` nei filtri.
+
+---
+
+## TenantQueryInterceptor – Sicurezza query
+
+**Obiettivo**: bloccare query senza filtro tenant.
+
+```python
+from linkbay_multitenant import TenantQueryInterceptor
+
 interceptor = TenantQueryInterceptor(
     tenant_column_name="tenant_id",
     strict_mode=True,
-    exempt_tables={"system_config", "migrations"}
+    exempt_tables={"system_config", "alembic_version"},
 )
 
-# Registra con engine
 interceptor.register_with_async_engine(engine)
-
-# Query builder sicuro
-@app.get("/products")
-async def get_products(tenant = Depends(require_tenant), session = Depends(get_db)):
-    builder = TenantQueryBuilder(tenant.id)
-    query = session.query(Product)
-    query = builder.filter_query(query)  # Filtro automatico
-    return query.all()
-
-# Operazioni admin (bypass temporaneo)
-from linkbay_multitenant import AdminQueryContext
-
-with AdminQueryContext(interceptor):
-    all_tenants = session.query(Tenant).all()  # ✅ Senza filtri
 ```
 
-### 3. Async Context Management
+### Limitazioni e best practice
 
-Context tenant preservato in background tasks:
+- **JOIN**: l'interceptor cerca `WHERE ... tenant_id =` nel SQL finale. Se fai join tra tabelle tenant-aware e tabelle globali, assicurati che almeno una condizione `tenant_id` sia presente. Usa alias espliciti:
+
+  ```python
+  query = select(Order).join(Customer).where(Order.tenant_id == tenant_id)
+  ```
+
+- **Subquery / CTE**: il controllo è testuale; se il filtro è in una subquery ma non nella query esterna, potresti ricevere un falso positivo. Suggerimento: forza sempre il filtro nella query esterna.
+
+- **Bulk UPDATE/DELETE**: devi aggiungere manualmente il filtro tenant:
+
+  ```python
+  await session.execute(
+      update(Product).where(Product.tenant_id == tenant_id).values(price=10)
+  )
+  ```
+
+- **Operazioni admin**: usa il context manager per bypass controllato.
+
+  ```python
+  from linkbay_multitenant import AdminQueryContext
+
+  with AdminQueryContext(interceptor):
+      await session.execute(update(SystemSetting).values(...))
+  ```
+
+- **Logging**: l'interceptor logga ogni blocco in `logger.error`. Configura un handler dedicato e invia alert (es. Slack) su tentativi ripetuti.
+
+---
+
+## TenantContext – ContextVars semplici
+
+Gestisce `tenant_id` anche in background tasks.
 
 ```python
 from linkbay_multitenant import TenantContext, run_with_tenant_context
 
-# Il middleware imposta automaticamente il context
-
-@app.get("/data")
-async def get_data():
-    tenant_id = TenantContext.get_tenant_id()  # ✅ Disponibile ovunque
-    return {"tenant": tenant_id}
-
-# Background tasks con context preserved
-async def send_email(to: str):
-    tenant_id = TenantContext.require_tenant_id()  # ✅ Context preserved
-    logger.info(f"Sending email for tenant {tenant_id}")
-
-@app.post("/send")
-async def trigger_email(background_tasks: BackgroundTasks):
-    tenant_id = TenantContext.get_tenant_id()
+@router.post("/email")
+async def send(background_tasks: BackgroundTasks, tenant = Depends(require_tenant)):
     background_tasks.add_task(
         run_with_tenant_context,
-        tenant_id,
-        send_email("user@example.com")
+        tenant.id,
+        send_email
     )
+
+async def send_email():
+    tenant_id = TenantContext.require_tenant_id()
 ```
 
-### 4. Admin API
+### Codice sync e thread pool
 
-Gestione completa tenant via API:
+- Le contextvars funzionano anche dentro `loop.run_in_executor`. Se usi librerie sincrone, avvolgi la chiamata:
 
-```python
-from linkbay_multitenant import TenantAdminService, create_admin_router
+  ```python
+  def sync_task():
+      tenant_id = TenantContext.require_tenant_id()
+      ...
 
-# Setup service
-admin_service = TenantAdminService(db_pool=db_pool)
+  await run_in_executor(None, sync_task)
+  ```
 
-# Auth admin (implementa la tua logica)
-async def require_admin_auth():
-    # Verifica token/permissions
-    pass
+- In worker separati (Celery, RQ) passa `tenant_id` come argomento e richiama `TenantContext.set_tenant_id` all'inizio del task.
 
-# Registra router
-admin_router = create_admin_router(admin_service, require_admin_auth)
-app.include_router(admin_router)
+---
 
-# API disponibili:
-# POST   /admin/tenants          - Crea tenant
-# GET    /admin/tenants          - Lista tenant
-# GET    /admin/tenants/{id}     - Dettagli
-# PATCH  /admin/tenants/{id}     - Aggiorna
-# DELETE /admin/tenants/{id}     - Elimina
-```
-
-### 5. Smart Caching
-
-Cache LRU con TTL per performance ottimali:
+## TenantCache – Cache con invalidazione
 
 ```python
-from linkbay_multitenant import TenantCache, TenantCacheService, cache_cleanup_task
+from linkbay_multitenant import TenantCache, TenantCacheService
 
-# Setup cache
-cache = TenantCache(
-    max_size=1000,
-    ttl_seconds=300,  # 5 minuti
-    enable_stats=True
-)
+cache = TenantCache(max_size=1000, ttl_seconds=300)
 
-# Service con cache-aside pattern
-async def get_tenant_from_db(tenant_id: str):
-    return await db.get_tenant(tenant_id)
+async def fetch_tenant(tenant_id: str):
+    return await tenant_service.get_tenant_by_id(tenant_id)
 
-cache_service = TenantCacheService(cache, get_tenant_from_db)
+cache_service = TenantCacheService(cache, fetch_tenant)
 
-# Usa in dependency
-async def get_tenant_cached(tenant_id: str = Depends(get_tenant_id)):
+async def get_tenant_cached(tenant_id = Depends(get_tenant_id)):
     return await cache_service.get_tenant(tenant_id)
-
-# Background cleanup
-@app.on_event("startup")
-async def startup():
-    asyncio.create_task(cache_cleanup_task(cache, interval_seconds=60))
-
-# Invalida dopo update
-@app.put("/admin/tenants/{tenant_id}")
-async def update_tenant(tenant_id: str, data: TenantUpdate):
-    await db.update_tenant(tenant_id, data)
-    await cache_service.invalidate_tenant(tenant_id)
-
-# Monitoring
-@app.get("/admin/cache/stats")
-async def cache_stats():
-    return cache.get_stats()
 ```
 
-### 6. Metrics & Monitoring
+### Invalidazione distribuita (multi-pod)
 
-Tracciamento real-time metriche per tenant:
+Il modulo è in-memory. Per deployment multi-container:
+
+1. **Sostituisci** `TenantCache` con Redis o Memcached. Esempio Redis:
+
+   ```python
+   import aioredis
+
+   redis = aioredis.from_url("redis://cache:6379")
+
+   async def redis_cache_get(tenant_id):
+       data = await redis.get(f"tenant:{tenant_id}")
+       return json.loads(data) if data else None
+   ```
+
+2. Usa un canale Pub/Sub per invalidazioni:
+
+   ```python
+   await redis.publish("tenant-invalidate", tenant_id)
+   ```
+
+3. Ogni istanza ascolta il canale e chiama `cache.delete(tenant_id)`.
+
+---
+
+## MetricsCollector – Metriche semplici
+
+Pensato per ambienti di test o istanze singole.
 
 ```python
 from linkbay_multitenant import MetricsCollector, MetricsMiddleware
 
-# Setup
-metrics_collector = MetricsCollector()
+collector = MetricsCollector()
+app.add_middleware(MetricsMiddleware, collector=collector)
 
-# Middleware automatico
-app.add_middleware(MetricsMiddleware, collector=metrics_collector)
-
-# API monitoring
 @app.get("/admin/metrics/{tenant_id}")
-async def get_tenant_metrics(tenant_id: str):
-    return await metrics_collector.get_tenant_metrics(tenant_id)
-
-@app.get("/admin/metrics/global")
-async def global_stats():
-    return await metrics_collector.get_global_stats()
-
-@app.get("/admin/metrics/top")
-async def top_tenants(by: str = "requests", limit: int = 10):
-    # by: "requests", "errors", "response_time", "storage"
-    return await metrics_collector.get_top_tenants(by, limit)
-
-# Metriche incluse:
-# - Total requests & errors
-# - Average response time
-# - Requests per second
-# - Storage used
-# - Active/total users
-# - DB queries & slow queries
+async def tenant_metrics(tenant_id: str, admin = Depends(require_admin)):
+    return await collector.get_tenant_metrics(tenant_id)
 ```
 
-### 7. Data Migration
+### Produzione & storicizzazione
 
-Sistema completo per migrazione dati:
+- Le metriche sono in-memory → si azzerano a ogni riavvio.
+- Per ambienti multi-istanzia integra Prometheus:
+
+  ```python
+  from prometheus_client import Counter
+
+  REQUESTS = Counter("tenant_requests", "Requests per tenant", ["tenant"])
+
+  await collector.record_request(tenant.id, response_time)
+  REQUESTS.labels(tenant=tenant.id).inc()
+  ```
+
+- Altre opzioni: OpenTelemetry + OTLP exporter, InfluxDB, Timescale.
+
+---
+
+## TenantAdminService – Admin API
+
+```python
+from linkbay_multitenant import TenantAdminService, create_admin_router
+
+admin_service = TenantAdminService(db_pool=db_pool)
+
+async def require_admin(token: str = Header(...)):
+    if token != "secret":
+        raise HTTPException(401)
+
+app.include_router(create_admin_router(admin_service, require_admin))
+```
+
+### Workflow di onboarding
+
+1. **POST /admin/tenants** – valida i dati.
+2. Nel service implementa:
+   - creazione schema/database
+   - esecuzione migrazioni (vedi sezione successiva)
+   - popolamento dati iniziali
+3. **Health check**: dopo la creazione prova una query `SELECT 1` usando `TenantDBPool`.
+
+---
+
+## TenantMigrationService – Migrazioni guidate
 
 ```python
 from linkbay_multitenant import TenantMigrationService, create_migration_router
 
-# Setup service
-migration_service = TenantMigrationService(
-    db_pool=db_pool,
-    export_path="/var/tenant_exports"
-)
-
-# Registra router
-migration_router = create_migration_router(migration_service, require_admin_auth)
-app.include_router(migration_router)
-
-# Uso programmatico
-
-# 1. Migra tutto da tenant A a B
-job_id = await migration_service.migrate_tenant_data(
-    "tenant-a",
-    "tenant-b",
-    copy_mode=False  # False = sposta, True = copia
-)
-
-# 2. Copia solo alcune tabelle
-job_id = await migration_service.migrate_tenant_data(
-    "tenant-a",
-    "tenant-b",
-    tables=["users", "products"],
-    copy_mode=True
-)
-
-# 3. Export per backup
-export_file = await migration_service.export_tenant_data("tenant-a")
-
-# 4. Monitor progresso
-status = await migration_service.get_job_status(job_id)
-# {
-#   "status": "running",
-#   "progress_percent": 45.2,
-#   "migrated_records": 1234,
-#   "total_records": 2730
-# }
+migration_service = TenantMigrationService(db_pool=db_pool)
+app.include_router(create_migration_router(migration_service, require_admin))
 ```
 
-## 📋 Setup Completo Enterprise
+### Safety checklist
+
+- Export/import avviene tabella per tabella → non è una transazione globale.
+- Se la migrazione fallisce a metà, i record già importati restano. Prevedi un backup.
+- Per un **dry-run**, chiama `export_tenant_data` e controlla il JSON senza importarlo.
+- Usa `copy_mode=True` per copiare senza cancellare il sorgente.
+- Implementa `_delete_source_data` solo se hai bisogno di move.
+- Aggiungi validazioni personalizzate (es. confronta numero record prima/dopo).
+
+---
+
+## Rate limiting per tenant
+
+La libreria non include un limiter, ma puoi collegarne uno in 5 righe con `slowapi` o `starlette-limiter`.
 
 ```python
-from fastapi import FastAPI
-from linkbay_multitenant import (
-    MultitenantCore,
-    MultitenantMiddleware,
-    TenantDBPool,
-    TenantQueryInterceptor,
-    TenantCache,
-    MetricsCollector,
-    MetricsMiddleware,
-    TenantAdminService,
-    create_admin_router
-)
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
-app = FastAPI()
+limiter = Limiter(key_func=lambda request: (TenantContext.get_tenant_id(), get_remote_address(request)))
 
-# 1. Core multitenant
-tenant_service = MyTenantService()
-multitenant_core = MultitenantCore(tenant_service, strategy="header")
-app.add_middleware(MultitenantMiddleware, multitenant_core=multitenant_core)
-
-# 2. DB Pool
-db_pool = TenantDBPool(get_tenant_db_url, pool_size=10)
-
-# 3. Security interceptor
-interceptor = TenantQueryInterceptor(strict_mode=True)
-interceptor.register_with_async_engine(engine)
-
-# 4. Caching
-cache = TenantCache(max_size=1000, ttl_seconds=300)
-
-# 5. Metrics
-metrics_collector = MetricsCollector()
-app.add_middleware(MetricsMiddleware, collector=metrics_collector)
-
-# 6. Admin API
-admin_service = TenantAdminService(db_pool=db_pool)
-admin_router = create_admin_router(admin_service, require_admin_auth)
-app.include_router(admin_router)
-
-# Cleanup
-@app.on_event("shutdown")
-async def shutdown():
-    await db_pool.close_all()
+@app.get("/api/data")
+@limiter.limit("100/minute")
+async def data(...):
+    ...
 ```
 
-## 🎯 Production Checklist
+In alternativa, usa API Gateway (Kong, APISIX) e passa `tenant_id` nell’header.
 
-- ✅ DB Connection pooling configurato
-- ✅ Query interceptor attivo (strict_mode=True)
-- ✅ Caching implementato per tenant info
-- ✅ Metrics collector attivo
-- ✅ Admin API protette con autenticazione
-- ✅ Background tasks usano context management
-- ✅ Migration strategy definita
-- ✅ Monitoring dashboard setup
-- ✅ Rate limiting per tenant
-- ✅ Backup automatici configurati
+---
+
+## Monitoraggio & logging del Query Interceptor
+
+- Configura un logger dedicato:
+
+  ```python
+  logger = logging.getLogger("linkbay_multitenant.security")
+  logger.setLevel(logging.WARNING)
+  ```
+
+- Invia gli eventi critici a un SIEM (Splunk, Datadog) o a Slack.
+- Monitora `has_tenant_filter` per capire se hai query sospette ricorrenti.
+- Se noti performance issue, valuta l’uso di viste/materialized view con filtro tenant pre-applicato.
+
+---
+
+## Schema migrations per N tenant
+
+### Database per tenant
+
+1. Conserva la lista tenant in un’unica tabella master.
+2. Usa Alembic con uno script custom:
+
+   ```bash
+   alembic upgrade head --sql > migration.sql
+   for tenant in $(python list_tenants.py); do
+       psql $tenant < migration.sql
+   done
+   ```
+
+3. Prevedi rollback per tenant falliti (backup + ripristino).
+
+### Shared database
+
+- Usa una singola migrazione che aggiunge colonne/constraint multi-tenant.
+- Abilita Row Level Security o il query interceptor.
+
+---
+
+## Scelte architetturali
+
+| Scenario | Suggerimento |
+|----------|--------------|
+| Pochi tenant con dati pesanti | Database per tenant con `TenantDBPool` |
+| Molti tenant “small” | Database condiviso, query interceptor + RLS |
+| Migrazione da single-tenant | Inizia con `header strategy` e copia i dati tenant per tenant |
+
+Scegli il modello più semplice che soddisfa i tuoi requisiti operativi.
+
+---
+
+## Esempio completo
+
+Per vedere tutto funzionare assieme, apri `example_enterprise.py`. È un’app FastAPI completa con middleware, admin API, cache, metriche e migrazioni.
+
+```bash
+uvicorn example_enterprise:app --reload
+```
+
+---
 
 ## Licenza
+
 ```bash
-MIT - Vedere LICENSE per dettagli.
+MIT - vedere LICENSE
 ```
 
-## ESEMPIO BASE
+---
 
-```python
-from fastapi import FastAPI, Depends
-from linkbay_multitenant import (
-    MultitenantCore, MultitenantMiddleware, 
-    MultitenantRouter, require_tenant
-)
+## Supporto
 
-app = FastAPI()
+- Issues: https://github.com/AlessioQuagliara/linkbay_multitenant/issues
+- Email: quagliara.alessio@gmail.com
 
-# Configurazione
-tenant_service = MyTenantService()  # La tua implementazione
-multitenant_core = MultitenantCore(
-    tenant_service=tenant_service,
-    strategy="subdomain"  # o "header", "path"
-)
-
-# Middleware automatico
-app.add_middleware(MultitenantMiddleware, multitenant_core=multitenant_core)
-
-# Router multitenant
-router = MultitenantRouter(prefix="/api")
-
-@router.get("/dashboard")
-async def dashboard(tenant = Depends(require_tenant)):
-    return {
-        "tenant": tenant.name,
-        "message": f"Benvenuto nel tenant {tenant.id}"
-    }
-
-app.include_router(router.router)
-```
+Contribuisci, apri una issue o raccontaci come stai usando la libreria 🧡
