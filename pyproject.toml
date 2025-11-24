@@ -1,6 +1,6 @@
 [project]
 name = "linkbay-multitenant"
-version = "1.0.0-beta"
+version = "0.2.0"
 description = "Sistema multitenant enterprise-ready per FastAPI - DB Pool, Security, Cache, Metrics, Admin API"
 authors = [
     {name = "Alessio Quagliara", email = "quagliara.alessio@gmail.com"},
@@ -17,21 +17,14 @@ keywords = ["fastapi", "multitenant", "saas", "enterprise", "database", "securit
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: MIT License",  # Aggiungi il classifier
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Framework :: FastAPI",
-    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-
-[project.urls]
-Homepage = "https://github.com/AlessioQuagliara/linkbay-multitenant"
-Repository = "https://github.com/AlessioQuagliara/linkbay-multitenant"
-Documentation = "https://github.com/AlessioQuagliara/linkbay-multitenant#readme"
-Issues = "https://github.com/AlessioQuagliara/linkbay-multitenant/issues"
 
 [project.optional-dependencies]
 # Database support
@@ -57,5 +50,5 @@ full = [
 ]
 
 [build-system]
-requires = ["setuptools>=45.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel"]  # Usa una versione stabile
 build-backend = "setuptools.build_meta"

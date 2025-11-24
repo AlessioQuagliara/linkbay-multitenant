@@ -65,3 +65,7 @@ site/
 
 # Bash
 gitpush.sh
+
+# pypi
+linkbay_ai.egg-info/
+dist/

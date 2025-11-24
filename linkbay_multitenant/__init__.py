@@ -13,7 +13,7 @@ from .cache import TenantCache, TenantCacheService, cache_cleanup_task
 from .metrics import TenantMetrics, MetricsCollector, MetricsMiddleware
 from .migration import TenantMigrationService, MigrationJob, MigrationStatus, create_migration_router
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     # Core
     "MultitenantCore",
